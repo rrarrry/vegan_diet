@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
 import datetime
-from streamlit_calendar import calendar
+from streamlit_calendar import st_calendar
 
 class CalendarApp:
     def __init__(self):
         # 스트림릿 앱 초기 설정
+        
         self.calendar_options = {
             "editable": True,
             "selectable": True,

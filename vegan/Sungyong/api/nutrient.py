@@ -6,8 +6,7 @@ from ultralytics import YOLO
 from PIL import Image
 
 class Nutrient:
-    def __init__(self, model_path="C:/Users/Admin/Documents/GitHub/vegan_diet/vegan/Sungyong/api/yolov8x.pt",
-                nutrition_data_path="C:/Users/Admin/Documents/GitHub/vegan_diet/vegan/Sungyong/api/FDDB.xlsx"):
+    def __init__(self, model_path="yolov8x.pt", nutrition_data_path="FDDB.xlsx"):
         """
         Nutrient 클래스 생성자
         :param model_path: YOLO 모델 경로
