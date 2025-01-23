@@ -40,8 +40,39 @@ def calculate_iron_rda(age, gender, weight, is_pregnant):
         factor = 0.1
     return base + (weight * factor)
 
+# 단백질 권장 섭취량 계산 함수
+def calculate_protein_rda(age, weight):
+    if age <= 18:  # 성장기 아동/청소년
+        factor = 1.0
+    elif age > 65:  # 노인
+        factor = 1.2
+    else:  # 일반 성인
+        factor = 0.8
+    return weight * factor
+
 # 스트림릿 UI 설정
 st.title("🧮 BMI 및 RDA 계산기")
+st.markdown("""
+<style>
+.result-card {
+    background-color: #e8f4f8;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+.result-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #0b5394;
+}
+.result-value {
+    font-size: 18px;
+    color: #333;
+    margin-top: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # 사용자 입력 받기
 gender = st.selectbox("성별을 선택하세요", ["남성", "여성"])
@@ -58,28 +89,63 @@ if st.button("결과 계산"):
     if height_cm > 0 and weight_kg > 0:
         # BMI 계산
         bmi = calculate_bmi(weight_kg, height_m)
-        st.write(f"당신의 BMI는 {bmi:.2f}입니다.")
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ BMI 결과</div>
+            <div class='result-value'>당신의 BMI는 <strong>{bmi:.2f}</strong>입니다.</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # BMI 상태 출력
         if bmi < 18.5:
-            st.write("저체중입니다.")
+            status = "저체중입니다."
         elif 18.5 <= bmi < 24.9:
-            st.write("정상 체중입니다.")
+            status = "정상 체중입니다."
         elif 25 <= bmi < 29.9:
-            st.write("과체중입니다.")
+            status = "과체중입니다."
         else:
-            st.write("비만입니다.")
+            status = "비만입니다."
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ BMI 상태</div>
+            <div class='result-value'>{status}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # 적정 체중 계산
         lower_weight, upper_weight = calculate_ideal_weight(height_m)
-        st.write(f"당신의 키에 맞는 적정 체중 범위는 {lower_weight:.1f}kg ~ {upper_weight:.1f}kg 입니다.")
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ 적정 체중 범위</div>
+            <div class='result-value'>당신의 키에 맞는 적정 체중 범위는 <strong>{lower_weight:.1f}kg ~ {upper_weight:.1f}kg</strong> 입니다.</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # 칼슘 RDA 계산
         calcium_rda = calculate_calcium_rda(age, gender, weight_kg)
-        st.write(f"칼슘 권장 섭취량: {calcium_rda:.1f}mg")
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ 칼슘 권장 섭취량</div>
+            <div class='result-value'><strong>{calcium_rda:.1f}mg</strong></div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # 철분 RDA 계산
         iron_rda = calculate_iron_rda(age, gender, weight_kg, is_pregnant)
-        st.write(f"철분 권장 섭취량: {iron_rda:.1f}mg")
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ 철분 권장 섭취량</div>
+            <div class='result-value'><strong>{iron_rda:.1f}mg</strong></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 단백질 RDA 계산
+        protein_rda = calculate_protein_rda(age, weight_kg)
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>➡️ 단백질 권장 섭취량</div>
+            <div class='result-value'><strong>{protein_rda:.1f}g</strong></div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         st.error("올바른 값을 입력해주세요.")
