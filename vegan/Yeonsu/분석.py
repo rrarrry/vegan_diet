@@ -18,7 +18,7 @@ def load_meal_data(file_path):
         df = pd.read_csv(file_path)
         df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
     except FileNotFoundError:
-        df = pd.DataFrame(columns=["Date", "Meal", "Food", "Quantity", "Unit", "Calories", "Protein", "Carbs", "Fat"])
+        df = pd.DataFrame(columns=["Date", "Meal", "Food", "Quantity", "Unit", "Calories", "Protein", "Carbs", "Fat", "Iron"])
     return df
 
 # 데이터 저장 함수
@@ -63,20 +63,30 @@ class NutrientAnalyzer:
             if food_name and quantity:
                 nutrition = self.calculate_nutrition(food_name, quantity)
                 if nutrition:
-                    col1, col2, col3, col4 = st.columns(4)
+                    col1, col2, col3, col4, col5 = st.columns(5)
                     col1.metric("열량", f"{nutrition['Calories']} kcal")
                     col2.metric("단백질", f"{nutrition['Protein']} g")
                     col3.metric("탄수화물", f"{nutrition['Carbs']} g")
                     col4.metric("지방", f"{nutrition['Fat']} g")
+                    col5.metric("철분", f"{nutrition['Iron']} mg")
                 else:
                     st.error("영양소 정보를 찾을 수 없습니다.")
 
     def calculate_nutrition(self, food_name, quantity):
-        # 기본 영양소 데이터
+        # 기본 영양소 데이터 (지방 포함, 철분 포함)
         nutrition_data = {
-            '샐러드': {'Calories': 15, 'Protein': 1.5, 'Carbs': 2.0, 'Fat': 0.3},
-            '닭가슴살': {'Calories': 165, 'Protein': 31, 'Carbs': 0, 'Fat': 3.6},
-            # 추가적인 음식과 영양소 데이터는 여기에 더 추가해야 합니다.
+            '샐러드': {'Calories': 15, 'Protein': 1.5, 'Carbs': 2.0, 'Fat': 0.2, 'Iron': 0.8},
+            '닭가슴살': {'Calories': 165, 'Protein': 31, 'Carbs': 0, 'Fat': 3.6, 'Iron': 1.2},
+            '연어': {'Calories': 208, 'Protein': 22, 'Carbs': 0, 'Fat': 13, 'Iron': 0.5},
+            '사과': {'Calories': 52, 'Protein': 0.3, 'Carbs': 14, 'Fat': 0.2, 'Iron': 0.1},
+            '바나나': {'Calories': 89, 'Protein': 1.1, 'Carbs': 23, 'Fat': 0.3, 'Iron': 0.3},
+            '우유': {'Calories': 42, 'Protein': 3.4, 'Carbs': 5, 'Fat': 1, 'Iron': 0.1},
+            '요구르트': {'Calories': 59, 'Protein': 3.6, 'Carbs': 5, 'Fat': 3.3, 'Iron': 0.1},
+            '고구마': {'Calories': 130, 'Protein': 1.5, 'Carbs': 30, 'Fat': 0.1, 'Iron': 0.7},
+            '감자': {'Calories': 76, 'Protein': 2.0, 'Carbs': 17, 'Fat': 0.1, 'Iron': 0.6},
+            '두부': {'Calories': 76, 'Protein': 8.1, 'Carbs': 1.9, 'Fat': 4.8, 'Iron': 2.7},
+            '돼지고기': {'Calories': 242, 'Protein': 27, 'Carbs': 0, 'Fat': 15, 'Iron': 2.5},
+            '소고기': {'Calories': 250, 'Protein': 26, 'Carbs': 0, 'Fat': 15, 'Iron': 2.5}
         }
         
         if food_name in nutrition_data:
@@ -86,7 +96,8 @@ class NutrientAnalyzer:
                 "Calories": food_data['Calories'] * multiplier,
                 "Protein": food_data['Protein'] * multiplier,
                 "Carbs": food_data['Carbs'] * multiplier,
-                "Fat": food_data['Fat'] * multiplier
+                "Fat": food_data['Fat'] * multiplier,
+                "Iron": food_data['Iron'] * multiplier
             }
         return None
 
@@ -116,6 +127,9 @@ class CalendarApp:
             0.3, 0.2, 4.7, 3.6, 13,
             0.2, 0.3, 1, 3.3, 0.2,
             0.1, 0.1, 4.8, 15, 15
+        ],
+        'Iron': [
+            0.2, 0.0, 1.0, 1.2, 0.5, 0.5, 0.6, 0.1, 0.1, 0.8, 0.4, 0.5, 0.7, 2.7, 2.5
         ]
     }
 
@@ -152,7 +166,8 @@ class CalendarApp:
                         "Calories": [nutrition['Calories']],
                         "Protein": [nutrition['Protein']],
                         "Carbs": [nutrition['Carbs']],
-                        "Fat": [nutrition['Fat']]
+                        "Fat": [nutrition['Fat']],
+                        "Iron": [nutrition['Iron']]
                     }
                     self.df = pd.concat([self.df, pd.DataFrame(new_data)], ignore_index=True)
                     save_meal_data(self.df, self.data_file)
@@ -170,7 +185,8 @@ class CalendarApp:
                 "Calories": food_data['Calories'] * multiplier,
                 "Protein": food_data['Protein'] * multiplier,
                 "Carbs": food_data['Carbs'] * multiplier,
-                "Fat": food_data['Fat'] * multiplier
+                "Fat": food_data['Fat'] * multiplier,
+                "Iron": food_data['Iron'] * multiplier
             }
         return None
 
@@ -188,15 +204,16 @@ class CalendarApp:
                 daily_summary = filtered_df.groupby(filtered_df['Date'].dt.date).sum(numeric_only=True)
 
                 # 영양소 그래프
-                st.line_chart(daily_summary[['Calories', 'Protein', 'Carbs', 'Fat']])
+                st.line_chart(daily_summary[['Calories', 'Protein', 'Carbs', 'Fat', 'Iron']])
 
                 # 평균 섭취량 표시
                 st.write("📈 평균 섭취량:")
-                cols = st.columns(4)
+                cols = st.columns(5)
                 cols[0].metric("칼로리", f"{daily_summary['Calories'].mean():.1f} kcal")
                 cols[1].metric("단백질", f"{daily_summary['Protein'].mean():.1f} g")
                 cols[2].metric("탄수화물", f"{daily_summary['Carbs'].mean():.1f} g")
                 cols[3].metric("지방", f"{daily_summary['Fat'].mean():.1f} g")
+                cols[4].metric("철분", f"{daily_summary['Iron'].mean():.1f} mg")
             else:
                 st.warning("최근 7일간의 데이터가 없습니다.")
         else:
