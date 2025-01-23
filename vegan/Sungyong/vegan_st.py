@@ -38,7 +38,8 @@ def main():
         nutrient_instance = Nutrient()
         nutrient_instance.show()  # 인스턴스를 통해 메서드 호출
     elif st.session_state["section"] == "신체 분석":     
-        InBody.show()        # class를 만들고 class 호출 후 보여주는 코드
+        inbody_instance = InBody()
+        inbody_instance.show()  # 인스턴스를 통해 메서드 호출      # class를 만들고 class 호출 후 보여주는 코드
     #elif st.session_state["section"] == "식단 조언":       # 최종? 조언해주는 창
     #    diet.show()
     #elif st.session_state["section"] == "월별 식단":       # 달력형식으로 그날 무엇을 먹었는지 기록하는 함수
