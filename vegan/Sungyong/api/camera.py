@@ -105,6 +105,15 @@ class Nutrient:
                 image = self.capture_from_camera()
 
         if image is not None:
+            detected_items = nutrient_instance.analyze_food(image)
+            nutrient_info = nutrient_instance.get_nutritional_info(detected_items)
+            st.session_state["detected_nutrients"] = {
+                "calories": nutrient_info["열량"]["value"],
+                "protein": nutrient_info["단백질"]["value"],
+                "calcium": nutrient_info["칼슘"]["value"],
+                "iron": nutrient_info["철"]["value"]
+            }
+
             try:
                 st.image(image, caption="입력된 이미지", use_column_width=True)
 

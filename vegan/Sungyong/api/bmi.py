@@ -54,7 +54,7 @@ class BmiRdaCalculator:
         return self.weight_kg * factor
 
     def show(self):
-        st.title("🧮 BMI 및 RDA 계산기")
+        st.title("🧮 BMI 및 RDA 자동 계산기 ")
         st.markdown("""
         <style>
         .result-card {
@@ -91,37 +91,46 @@ class BmiRdaCalculator:
         weight_kg = st.number_input("몸무게를 입력하세요 (kg)", min_value=1, max_value=300, key="weight_input")
         is_pregnant = st.checkbox("임신 여부 (해당 시 체크)", key="pregnant_checkbox")
 
+        # 실시간 계산 수행
+        calculator = BmiRdaCalculator(gender, age, height_cm, weight_kg, is_pregnant)
+        
+        st.session_state["nutrition_results"] = {
+            "bmi": calculator.calculate_bmi(),
+            "ideal_weight": calculator.calculate_ideal_weight(),
+            "calcium_rda": calculator.calculate_calcium_rda(),
+            "iron_rda": calculator.calculate_iron_rda(),
+            "protein_rda": calculator.calculate_protein_rda()
+        }
+        
+        # 결과 출력
+        bmi = st.session_state["nutrition_results"]["bmi"]
+        lower, upper = st.session_state["nutrition_results"]["ideal_weight"]
+        calcium_rda = st.session_state["nutrition_results"]["calcium_rda"]
+        iron_rda = st.session_state["nutrition_results"]["iron_rda"]
+        protein_rda = st.session_state["nutrition_results"]["protein_rda"]
 
-        if st.button("결과 계산"):
-            calculator = BmiRdaCalculator(gender, age, height_cm, weight_kg, is_pregnant)
-            bmi = calculator.calculate_bmi()
-            lower, upper = calculator.calculate_ideal_weight()
-            calcium_rda = calculator.calculate_calcium_rda()
-            iron_rda = calculator.calculate_iron_rda()
-            protein_rda = calculator.calculate_protein_rda()
-
-            st.markdown(f"""
-            <div class='result-card'>
-                <div class='result-title'>📘 BMI 결과</div>
-                <div class='result-value'>당신의 BMI는 <strong>{bmi:.2f}</strong>입니다.</div>
-            </div>
-            <div class='result-card'>
-                <div class='result-title'>📘 적정 체중 범위</div>
-                <div class='result-value'>당신의 키에 맞는 적정 체중 범위는 <strong>{lower:.1f}kg ~ {upper:.1f}kg</strong> 입니다.</div>
-            </div>
-            <div class='result-card'>
-                <div class='result-title'>📘 칼슘 권장 섭취량</div>
-                <div class='result-value'>{calcium_rda:.1f}mg</div>
-            </div>
-            <div class='result-card'>
-                <div class='result-title'>📘 철분 권장 섭취량</div>
-                <div class='result-value'>{iron_rda:.1f}mg</div>
-            </div>
-            <div class='result-card'>
-                <div class='result-title'>📘 단백질 권장 섭취량</div>
-                <div class='result-value'>{protein_rda:.1f}g</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class='result-card'>
+            <div class='result-title'>📘 BMI 결과</div>
+            <div class='result-value'>당신의 BMI는 <strong>{bmi:.2f}</strong>입니다.</div>
+        </div>
+        <div class='result-card'>
+            <div class='result-title'>📘 적정 체중 범위</div>
+            <div class='result-value'>당신의 키에 맞는 적정 체중 범위는 <strong>{lower:.1f}kg ~ {upper:.1f}kg</strong> 입니다.</div>
+        </div>
+        <div class='result-card'>
+            <div class='result-title'>📘 칼슘 권장 섭취량</div>
+            <div class='result-value'>{calcium_rda:.1f}mg</div>
+        </div>
+        <div class='result-card'>
+            <div class='result-title'>📘 철분 권장 섭취량</div>
+            <div class='result-value'>{iron_rda:.1f}mg</div>
+        </div>
+        <div class='result-card'>
+            <div class='result-title'>📘 단백질 권장 섭취량</div>
+            <div class='result-value'>{protein_rda:.1f}g</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     app = BmiRdaCalculator("남성", 30, 175, 70)
