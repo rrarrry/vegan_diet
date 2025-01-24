@@ -6,7 +6,7 @@ import pandas as pd
 def load_user_data(name, file_path="user_data.csv"):
     if not os.path.exists(file_path):
         return None
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, encoding="cp949")
     row = df[df["name"] == name]
     if row.empty:
         return None
@@ -14,18 +14,18 @@ def load_user_data(name, file_path="user_data.csv"):
 
 def save_user_data(user_info, file_path="user_data.csv"):
     if not os.path.exists(file_path):
-        df = pd.DataFrame(columns=["name","gender","age","height_cm","weight_kg","is_pregnant"])
-        df.to_csv(file_path, index=False)
+        df = pd.DataFrame(columns=["name", "gender", "age", "height_cm", "weight_kg", "is_pregnant"])
+        df.to_csv(file_path, index=False, encoding="cp949")
 
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, encoding="cp949")
     existing = df[df["name"] == user_info["name"]]
     if not existing.empty:
         idx = existing.index[0]
-        df.update(pd.DataFrame([user_info]))
+        df.loc[idx] = user_info  # 기존 데이터 업데이트
     else:
         df = pd.concat([df, pd.DataFrame([user_info])], ignore_index=True)
 
-    df.to_csv(file_path, index=False)
+    df.to_csv(file_path, index=False, encoding="cp949")
     st.success(f"✅ {user_info['name']}님의 정보가 저장되었습니다!")
 
 

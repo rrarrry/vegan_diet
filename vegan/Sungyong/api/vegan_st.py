@@ -28,8 +28,8 @@ def show_sidebar_navigation():
 # 메인 실행 함수
 def main():
     # Streamlit 앱
-    st.set_page_config(page_title="비건 영양소 대시보드", layout="wide")     # 화면 상단 메인 타이틀
-    st.title("🥗비건 영양소 대시보드")          # 화면 상단 메인 타이틀
+    #t.set_page_config(page_title="비건 영양소 대시보드", layout="wide")     # 화면 상단 메인 타이틀
+    st.title("🥗 Veggie Bites")          # 화면 상단 메인 타이틀
     
     # 기본 섹션 설정
     if "section" not in st.session_state:

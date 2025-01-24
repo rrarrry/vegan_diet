@@ -1,4 +1,5 @@
 import streamlit as st
+st.set_page_config(page_title="비건 영양소 대시보드", layout="wide")  # 최상단으로 이동
 import cv2
 import numpy as np
 import pandas as pd
@@ -43,6 +44,12 @@ class Nutrient:
             results = self.model.predict(img_array)
 
             detected_foods = st.session_state.get("detected_foods", [])
+
+            st.write("📊 대시보드에서 감지된 음식 목록:", detected_foods)  # 값 출력
+
+            if not detected_foods:
+                st.warning("아직 음식 분석 결과가 없습니다. 먼저 이미지를 업로드하세요.") 
+                
             for r in results:
                 for box in r.boxes:
                     class_id = int(box.cls)
@@ -135,6 +142,11 @@ class Nutrient:
             st.write("🔍 음식 분석 중...")
 
             detected_foods = self.analyze_food(image)
+
+            # 세션 상태 저장 및 확인
+            st.session_state["detected_foods"] = detected_foods
+            st.write("📸 감지된 음식 목록:", st.session_state["detected_foods"])  # 값 출력
+
             if detected_foods:
                 st.write("**📋 탐지된 음식:**")
                 for food, confidence in detected_foods:
@@ -243,38 +255,41 @@ class Nutrient:
             quantity = st.number_input("양", min_value=0.0, value=100.0, step=10.0)
             unit = st.selectbox("단위", ["g", "ml"])
 
+
+    # if st.button("식단 저장"):
+    #     try:
+    #         date_today = datetime.date.today()
+        
+    #         # 리스트를 DataFrame으로 변환
+    #         meal_data = pd.DataFrame([{
+    #             "Date": date_today,
+    #             "Meal": "분석된 식단",
+    #             "Food": food_name,
+    #             "Quantity": quantity,
+    #             "Unit": "g",
+    #             "Calories": adjusted["Calories"],
+    #             "Protein": adjusted["Protein"],
+    #             "Carbs": adjusted["Carbs"],
+    #             "Fat": adjusted["Fat"],
+    #             "Iron": adjusted["Iron"],
+    #             "Calc": adjusted["Calc"]
+    #         }])
+
+    #         # 기존 세션 데이터가 DataFrame인지 확인 후 병합
+    #         if "detected_foods" not in st.session_state or isinstance(st.session_state['detected_foods'], list):
+    #             st.session_state['detected_foods'] = meal_data
+    #         else:
+    #             st.session_state['detected_foods'] = pd.concat([st.session_state['detected_foods'], meal_data], ignore_index=True)
+
+    #         st.success("식단이 저장되었습니다!")
+
+    #     except Exception as e:
+    #         st.error(f"식단 저장 중 오류가 발생했습니다: {str(e)}")
+
     
 
-        # if st.button("식단 저장"):
-        #     if food_name and quantity > 0:
-        #         nutrition = self.calculate_nutrition(food_name, quantity)
-        #         if nutrition:
-        #             new_data = {
-        #                 "Date": [date],
-        #                 "Meal": [meal_type],
-        #                 "Food": [food_name],
-        #                 "Quantity": [quantity],
-        #                 "Unit": [unit],
-        #                 "Calories": [nutrition['Calories']],
-        #                 "Protein": [nutrition['Protein']],
-        #                 "Carbs": [nutrition['Carbs']],
-        #                 "Fat": [nutrition['Fat']],
-        #                 "Iron": [nutrition['Iron']]
-        #             }
-        #             self.df = pd.concat([self.df, pd.DataFrame(new_data)], ignore_index=True)
-        #             save_meal_data(self.df, self.data_file)
-        #             st.success("식단이 저장되었습니다!")
-        #         else:
-        #             st.error("영양소 정보를 찾을 수 없습니다.")
-        #     else:
-        #         st.error("올바른 음식명과 양을 입력해주세요.")
-    
-    
 
 # Streamlit 앱 실행
 if __name__ == "__main__":
-    if "detected_foods" not in st.session_state:
-        st.session_state["detected_foods"] = []  # 빈 리스트로 초기화
-
     nutrient_app = Nutrient()
     nutrient_app.show()

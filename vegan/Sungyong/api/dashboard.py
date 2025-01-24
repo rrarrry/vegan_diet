@@ -98,10 +98,11 @@ class Dashboard:
             return  # 바로 함수 종료
 
         # 2) 실제 분석 결과: 사용자가 섭취한 영양소 양
-        actual_calories = nutrient_info["calories"]
-        actual_protein  = nutrient_info["protein"]
-        actual_calcium  = nutrient_info["calcium"]
-        actual_iron     = nutrient_info["iron"]
+        actual_calories = nutrient_info.get("열량", {"value": 0})["value"]
+        actual_protein  = nutrient_info.get("단백질", {"value": 0})["value"]
+        actual_calcium  = nutrient_info.get("칼슘", {"value": 0})["value"]
+        actual_iron     = nutrient_info.get("철", {"value": 0})["value"]
+
         
         # 3) 일일권장섭취량(RDA) 또는 목표치(예시 값)
         rda_calories = 2000     # kcal
