@@ -1,116 +1,71 @@
 import streamlit as st
-st.set_page_config(page_title="비건 영양소 대시보드", layout="wide")  # 최상단으로 이동
 import cv2
 import numpy as np
 import pandas as pd
 from ultralytics import YOLO
 from PIL import Image
-import warnings
 import datetime
-import google.generativeai as genai  # Gemini API
+import warnings
+import google.generativeai as genai  # Gemini API를 위한 라이브러리 추가
+
+# 페이지 설정
+st.set_page_config(page_title="K-Veggie Bites", layout="wide")
+
+# 경고 무시 설정
+warnings.filterwarnings("ignore", category=UserWarning, module="streamlit")
+
+# 초기 세션 상태 설정
+if 'meal_data' not in st.session_state:
+    st.session_state['meal_data'] = pd.DataFrame(columns=[
+        "Date", "Meal", "Food", "Quantity", "Unit", "Calories", "Protein", "Carbs", "Fat", "Iron", "Calc"
+    ])
+
+def check_vegetarian(food_name):
+    """
+    LLM을 사용하여 음식이 채식 식단에 포함되는지 판별
+    """
+    try:
+        question = f"Is {food_name} a vegetarian food?"
+        model = genai.GenerativeModel("gemini-1.5-flash")  # GEMINI API 모델
+        response = model.generate_content(question)  # 질문 생성 및 응답 받기
+
+        if "yes" in response.text.lower():
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"채식 판별 중 오류 발생: {str(e)}")
+        return None
 
 
 
-
-class Nutrient:
-    def __init__(self, model_path="best.pt", nutrition_data_path="FDDB.xlsx"):
-        """
-        Nutrient 클래스 생성자
-        """
+class NutrientAnalyzer:
+    def __init__(self):
         try:
-            self.model = YOLO(model_path)
-            st.info("커스텀 학습 모델 로드 완료")
+            self.model = YOLO("best.pt")  # YOLO 모델 로드
+            self.nutrition_df = pd.read_excel("FDDB.xlsx")  # 영양정보 데이터 로드
+            self.nutrition_df = self.nutrition_df.set_index('식품명')
         except Exception as e:
             st.error(f"초기화 오류: {e}")
-            raise e
-
-        try:
-            self.nutrition_df = pd.read_excel(nutrition_data_path)
-            # 불필요한 컬럼 매핑 제거, 원본 컬럼명 사용
-            self.nutrition_df = self.nutrition_df.set_index('식품명')
-            st.info("영양정보 데이터 로드 완료")
-        except FileNotFoundError:
-            st.error(f"Excel 파일이 '{nutrition_data_path}' 경로에 없습니다.")
             raise
-        except Exception as e:
-            st.error(f"Excel 파일 로드 중 오류 발생: {e}")
-            raise
-    
-    def check_vegetarian(self, food_name):
-        """
-        LLM을 사용하여 음식이 채식 식단에 포함되는지 판별
-        """
-        try:
-            question = f"Is {food_name} a vegetarian food?"
-            model = genai.GenerativeModel("gemini-1.5-flash")  # GEMINI API 모델
-            response = model.generate_content(question)  # 질문 생성 및 응답 받기
-
-            if "yes" in response.text.lower():
-                return True
-            else:
-                return False
-        except Exception as e:
-            st.error(f"채식 판별 중 오류 발생: {str(e)}")
-            return None
-
 
     def analyze_food(self, image):
-        """
-        업로드된 음식 이미지를 분석하여 탐지된 음식 항목 및 확률 반환
-        :param image: PIL 이미지 객체
-        :return: 탐지된 음식 목록 [(음식명, 확률)]
-        """
-        img_array = np.array(image)
+        """이미지에서 음식 감지"""
         try:
+            img_array = np.array(image)
             results = self.model.predict(img_array)
-
-            detected_foods = st.session_state.get("detected_foods", [])
-                
+            
+            detected_items = []
             for r in results:
                 for box in r.boxes:
                     class_id = int(box.cls)
                     class_name = self.model.names[class_id]
                     confidence = box.conf.item()
-                    detected_foods.append((class_name, confidence))
-                    
-                    # 중복 데이터 방지
-                    if (class_name, confidence) not in detected_foods:
-                        detected_foods.append((class_name, confidence))
-
-            # 세션 상태에 중복 없이 저장
-            st.session_state["detected_foods"] = list(set(detected_foods))
-
-            return detected_foods
+                    detected_items.append((class_name, confidence))
+            return detected_items
         except Exception as e:
             st.error(f"분석 오류: {e}")
             return []
-
-    def get_nutritional_info(self, detected_foods):
-        """
-        YOLO로 탐지된 음식들의 합산 영양소 정보를 반환
-        """
-        nutrient_summary = {
-            "영양성분함량기준량": {"value": "", "unit": ""},
-            "열량": {"value": 0, "unit": "kcal"},
-            "단백질": {"value": 0, "unit": "g"},
-            "지방": {"value": 0, "unit": "g"},
-            "탄수화물": {"value": 0, "unit": "g"},
-            "칼슘": {"value": 0, "unit": "mg"},
-            "철": {"value": 0, "unit": "mg"}
-        }
-
-        for food, _ in detected_foods:
-            if food in self.nutrition_df.index:
-                row = self.nutrition_df.loc[food]
-                nutrient_summary["영양성분함량기준량"]["value"] = str(row['영양성분함량기준량'])
-                nutrient_summary["열량"]["value"] += float(row['에너지(kcal)']) if pd.notnull(row['에너지(kcal)']) else 0
-                nutrient_summary["단백질"]["value"] += float(row['단백질(g)']) if pd.notnull(row['단백질(g)']) else 0
-                nutrient_summary["지방"]["value"] += float(row['지방(g)']) if pd.notnull(row['지방(g)']) else 0
-                nutrient_summary["탄수화물"]["value"] += float(row['탄수화물(g)']) if pd.notnull(row['탄수화물(g)']) else 0
-                nutrient_summary["칼슘"]["value"] += float(row['칼슘(mg)']) if pd.notnull(row['칼슘(mg)']) else 0
-                nutrient_summary["철"]["value"] += float(row['철(mg)']) if pd.notnull(row['철(mg)']) else 0
-
-        return nutrient_summary
 
     def calculate_nutrition(self, food_name, quantity):
         """100g 기준 및 입력 양에 따른 영양정보 계산"""
@@ -141,15 +96,13 @@ class Nutrient:
             st.error(f"영양정보 계산 오류: {e}")
             return None
 
-
     def show(self):
-        """스트림릿 페이지 UI 구성 및 음식 분석"""
-        st.title("🥗 음식 영양소 분석기")
-        st.subheader("업로드 된 사진 또는 이미지 촬영 후 분석합니다..")
+        """영양소 분석기 UI"""
+        st.subheader("🥗 음식 영양소 분석기")
+        st.write("사진을 업로드하거나 카메라로 찍은 이미지를 분석합니다.")
 
-        # 1) 이미지 입력 방식
         input_method = st.radio("이미지 입력 방식 선택", ["파일 업로드", "카메라 촬영"])
-        
+
         image = None
         if input_method == "파일 업로드":
             uploaded_file = st.file_uploader("음식 사진을 업로드하세요", type=["jpg", "png", "jpeg"])
@@ -160,12 +113,11 @@ class Nutrient:
             if image:
                 image = Image.open(image)
 
-            
         if image is not None:
-            st.image(image, caption="입력된 이미지", use_container_width=True)
-            
-            detected_foods = self.analyze_food(image)
+            st.image(image, caption="입력된 이미지", use_column_width=True)
+            st.write("🔍 음식 분석 중...")
 
+            detected_foods = self.analyze_food(image)
             if detected_foods:
                 st.write("**📋 탐지된 음식:**")
                 for food, confidence in detected_foods:
@@ -173,9 +125,8 @@ class Nutrient:
 
                 food_name = st.selectbox("음식명", [food for food, _ in detected_foods])
                 quantity = st.number_input("양 (그램 단위)", min_value=1, value=100, step=1)
-                
                 # 채식 여부 판별 추가
-                is_vegetarian = self.check_vegetarian(food)
+                is_vegetarian = check_vegetarian(food)
                 if is_vegetarian is not None:
                     if is_vegetarian:
                         st.markdown(
@@ -204,11 +155,10 @@ class Nutrient:
                         """,
                         unsafe_allow_html=True
                     )
-
-                # 여백 추가
+        # 여백 추가
                 st.markdown("<br>", unsafe_allow_html=True)  # HTML로 여백 추가
                 st.markdown("---")  # 구분선 추가
-
+                        
                 if food_name and quantity:
                     nutrition = self.calculate_nutrition(food_name, quantity)
                     if nutrition:
@@ -236,7 +186,7 @@ class Nutrient:
                         if st.button("식단 저장"):
                             try:
                                 date_today = datetime.date.today()
-                                saved_meals = {
+                                meal_data = {
                                     "Date": [date_today],
                                     "Meal": ["분석된 식단"],
                                     "Food": [food_name],
@@ -249,22 +199,10 @@ class Nutrient:
                                     "Iron": [adjusted['Iron']],
                                     "Calc": [adjusted['Calc']]
                                 }
-
-                                df_new = pd.DataFrame(saved_meals, columns=['Date', 'Meal', 'Food', 'Quantity', 'Unit', 'Calories', 'Protein', 'Carbs', 'Fat', 'Iron', 'Calc'])
-
-                                # 세션 상태 초기화 및 리스트 처리
-                                if "saved_meals" not in st.session_state:
-                                    st.session_state["saved_meals"] = df_new
-                                else:
-                                    if not isinstance(st.session_state["saved_meals"], pd.DataFrame):
-                                        st.session_state["saved_meals"] = pd.DataFrame(columns=['Date', 'Meal', 'Food', 'Quantity', 'Unit', 'Calories', 'Protein', 'Carbs', 'Fat', 'Iron', 'Calc'])
-
-                                
-                                    # DataFrame 병합
-                                    st.session_state["saved_meals"] = pd.concat(
-                                        [st.session_state["saved_meals"], df_new], ignore_index=True
-                                    )
-                                
+                                df_new = pd.DataFrame(meal_data)
+                                st.session_state['meal_data'] = pd.concat(
+                                    [st.session_state['meal_data'], df_new], ignore_index=True
+                                )
                                 st.success("식단이 저장되었습니다!")
                             except Exception as e:
                                 st.error(f"식단 저장 중 오류가 발생했습니다: {str(e)}")
@@ -273,11 +211,11 @@ class Nutrient:
             else:
                 st.warning("음식이 감지되지 않았습니다. 다시 시도해주세요.")
 
-        # 영양소 분석 완료 후 AI 메뉴 추천 섹션 추가    
+        # 영양소 분석 완료 후 AI 메뉴 추천 섹션 추가
         st.markdown("---")  # 구분선
         st.subheader("🤖 AI 메뉴 추천")
-        
-         # Gemini API 설정
+
+        # Gemini API 설정
         genai.configure(api_key="AIzaSyAOHLx3xEqreniNau4M_FbDXjurkx54cro")  # Gemini API 키 설정
 
         # 사용자 입력 UI
@@ -305,7 +243,61 @@ class Nutrient:
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {str(e)}")
 
- # Streamlit 앱 실행
+# 주간 분석 UI 추가
+def show_weekly_analysis():
+    st.subheader("📊 주간 영양소 분석")
+
+    df = st.session_state['meal_data']
+
+    if df.empty:
+        st.warning("저장된 식단 데이터가 없습니다. 먼저 데이터를 저장하세요.")
+    else:
+        # 최근 7일 데이터 필터링
+        start_date = datetime.datetime.now() - datetime.timedelta(days=7)
+        df['Date'] = pd.to_datetime(df['Date'])  # Ensure the 'Date' column is in datetime format
+        filtered_df = df[df['Date'] >= start_date]
+
+        if filtered_df.empty:
+            st.warning("최근 7일간 저장된 데이터가 없습니다.")
+        else:
+            # 날짜별 영양소 합계 계산
+            daily_summary = filtered_df.groupby(filtered_df['Date'].dt.date).sum(numeric_only=True)
+
+            # 테이블 표시
+            st.write("### 최근 7일간 식단 요약")
+            st.dataframe(filtered_df)
+
+            # 날짜별 요약 표시
+            st.write("### 날짜별 영양소 합계")
+            st.dataframe(daily_summary)
+
+            # 영양소 별 시각화
+            st.write("### 영양소 섭취 추세")
+            st.line_chart(daily_summary[['Calories', 'Protein', 'Carbs', 'Fat', 'Iron']])
+
+# 메인 함수
+def main():
+    st.title("🍽️ 영양소 분석 & 식단 관리 시스템")
+
+    st.sidebar.markdown("### 메뉴 선택")
+    menus = {
+        "음식 영양소 분석": "🥗",
+        "주간 분석": "📊"
+    }
+
+    if 'current_menu' not in st.session_state:
+        st.session_state.current_menu = "음식 영양소 분석"
+
+    for menu, icon in menus.items():
+        if st.sidebar.button(f"{icon} {menu}"):
+            st.session_state.current_menu = menu
+
+    analyzer = NutrientAnalyzer()
+
+    if st.session_state.current_menu == "음식 영양소 분석":
+        analyzer.show()
+    elif st.session_state.current_menu == "주간 분석":
+        show_weekly_analysis()
+
 if __name__ == "__main__":
-    nutrient_app = Nutrient()
-    nutrient_app.show()
+    main()

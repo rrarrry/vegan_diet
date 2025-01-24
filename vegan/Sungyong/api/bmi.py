@@ -42,10 +42,11 @@ class BmiRdaCalculator:
         return self.weight_kg / (self.height_m ** 2)
 
     def calculate_ideal_weight(self):
+
         lower_weight = 18.5 * (self.height_m ** 2)
         upper_weight = 24.9 * (self.height_m ** 2)
         return lower_weight, upper_weight
-
+    
     def calculate_calcium_rda(self):
         if self.age <= 18:
             base = 1300
@@ -56,6 +57,33 @@ class BmiRdaCalculator:
         else:
             base = 1000
             factor = 3 if self.age < 65 else 2
+        return base + (self.weight_kg * factor)
+    
+    def calculate_calories_rda(self):
+        """
+        나이, 성별, 체중을 기반으로 하루 권장 열량(RDA) 계산
+        """
+        if self.age <= 18:
+            base = 2200  # 성장기 연령대의 기본 열량
+            factor = 20  # 체중 당 추가 열량
+        elif self.gender == "여성":
+            if self.age > 50:
+                base = 1800  # 폐경 이후 연령대
+                factor = 15
+            else:
+                base = 2000
+                factor = 18
+        else:  # 남성의 경우
+            if self.age < 30:
+                base = 2500  # 활동량이 많은 연령대
+                factor = 22
+            elif self.age < 50:
+                base = 2400
+                factor = 20
+            else:
+                base = 2200
+                factor = 18
+    
         return base + (self.weight_kg * factor)
 
     def calculate_iron_rda(self):
@@ -159,6 +187,7 @@ class BmiRdaCalculator:
         st.session_state["nutrition_results"] = {
             "bmi": calculator.calculate_bmi(),
             "ideal_weight": calculator.calculate_ideal_weight(),
+            "calories_rda": calculator.calculate_calories_rda(),
             "calcium_rda": calculator.calculate_calcium_rda(),
             "iron_rda": calculator.calculate_iron_rda(),
             "protein_rda": calculator.calculate_protein_rda()
@@ -167,6 +196,7 @@ class BmiRdaCalculator:
         # 결과 출력
         bmi = st.session_state["nutrition_results"]["bmi"]
         lower, upper = st.session_state["nutrition_results"]["ideal_weight"]
+        calories_rda = st.session_state["nutrition_results"]["calories_rda"]
         calcium_rda = st.session_state["nutrition_results"]["calcium_rda"]
         iron_rda = st.session_state["nutrition_results"]["iron_rda"]
         protein_rda = st.session_state["nutrition_results"]["protein_rda"]
@@ -179,6 +209,10 @@ class BmiRdaCalculator:
         <div class='result-card'>
             <div class='result-title'>📘 적정 체중 범위</div>
             <div class='result-value'>당신의 키에 맞는 적정 체중 범위는 <strong>{lower:.1f}kg ~ {upper:.1f}kg</strong> 입니다.</div>
+        </div>
+        <div class='result-card'>
+            <div class='result-title'>📘 칼로리 권장 섭취량</div>
+            <div class='result-value'>{calories_rda:.1f}mg</div>
         </div>
         <div class='result-card'>
             <div class='result-title'>📘 칼슘 권장 섭취량</div>
@@ -197,6 +231,7 @@ class BmiRdaCalculator:
         st.session_state["bmi_data"] = {
             "bmi": bmi,
             "ideal_weight_range": (lower, upper),
+            "calories_rda": calories_rda,
             "protein_rda": protein_rda,
             "calcium_rda": calcium_rda,
             "iron_rda": iron_rda
