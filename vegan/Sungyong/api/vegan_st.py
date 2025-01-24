@@ -5,6 +5,9 @@ from bmi import BmiRdaCalculator
 from camera import Nutrient
 from dashboard import Dashboard
 
+if "detected_foods" not in st.session_state:
+    st.session_state["detected_foods"] = []  # 빈 리스트로 초기화
+
 
 # 사이드바 네비게이션
 def show_sidebar_navigation():  
@@ -13,9 +16,9 @@ def show_sidebar_navigation():
     # 섹션 이동 버튼
     if st.sidebar.button("🏢 BMI 계산"):
         st.session_state["section"] = "BMI 계산"
-    if st.sidebar.button("📈영양소 분석"):
+    if st.sidebar.button("🤖영양소 분석"):
         st.session_state["section"] = "영양소 분석"
-    if st.sidebar.button("🤖 대시 보드"):
+    if st.sidebar.button("📈대시 보드"):
         st.session_state["section"] = "대시 보드"
     #if st.sidebar.button("📅 월별 식단"):
     #   st.session_state["section"] = "월별 식단"
@@ -50,11 +53,11 @@ def main():
         # 입력 없이 바로 BMI 계산 클래스를 호출
         bmi_calculator = BmiRdaCalculator(**st.session_state["user_data"])
         bmi_calculator.show()
-
     elif st.session_state["section"] == "영양소 분석":     
         nutrient_instance = Nutrient()
         nutrient_instance.show()  # 인스턴스를 통해 메서드 호출        # class를 만들고 class 호출 후 보여주는 코드
-    elif st.session_state["section"] == "대시 보드":       
+    elif st.session_state["section"] == "대시 보드":
+        detected_foods = st.session_state.get("detected_foods", [])       
         dashboard_instance = Dashboard()
         dashboard_instance.show_dashboard()
     #elif st.session_state["section"] == "월별 식단":       # 달력형식으로 그날 무엇을 먹었는지 기록하는 함수

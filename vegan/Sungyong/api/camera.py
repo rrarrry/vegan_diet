@@ -4,19 +4,20 @@ import numpy as np
 import pandas as pd
 from ultralytics import YOLO
 from PIL import Image
+import warnings
+import datetime
+import google.generativeai as genai  # Gemini API
 
 class Nutrient:
     def __init__(self, model_path="best.pt", nutrition_data_path="FDDB.xlsx"):
         """
         Nutrient 클래스 생성자
-        :param model_path: 학습된 YOLO 모델 경로
-        :param nutrition_data_path: 영양소 데이터 Excel 파일 경로
         """
         try:
             self.model = YOLO(model_path)
             st.info("커스텀 학습 모델 로드 완료")
         except Exception as e:
-            st.error(f"YOLO 모델 로드 실패: {e}")
+            st.error(f"초기화 오류: {e}")
             raise e
 
         try:
@@ -41,24 +42,22 @@ class Nutrient:
         try:
             results = self.model.predict(img_array)
 
-            detected_items = []
+            detected_foods = st.session_state.get("detected_foods", [])
             for r in results:
                 for box in r.boxes:
                     class_id = int(box.cls)
                     class_name = self.model.names[class_id]
                     confidence = box.conf.item()
-                    detected_items.append((class_name, confidence))
+                    detected_foods.append((class_name, confidence))
 
-            return detected_items
+            return detected_foods
         except Exception as e:
-            st.error(f"YOLO 예측 실패: {e}")
+            st.error(f"분석 오류: {e}")
             return []
 
-    def get_nutritional_info(self, detected_items):
+    def get_nutritional_info(self, detected_foods):
         """
-        탐지된 음식의 영양소 정보를 추출
-        :param detected_items: 탐지된 음식 목록 [(음식명, 확률)]
-        :return: 영양소 요약 데이터
+        YOLO로 탐지된 음식들의 합산 영양소 정보를 반환
         """
         nutrient_summary = {
             "영양성분함량기준량": {"value": "", "unit": ""},
@@ -70,7 +69,7 @@ class Nutrient:
             "철": {"value": 0, "unit": "mg"}
         }
 
-        for food, _ in detected_items:
+        for food, _ in detected_foods:
             if food in self.nutrition_df.index:
                 row = self.nutrition_df.loc[food]
                 nutrient_summary["영양성분함량기준량"]["value"] = str(row['영양성분함량기준량'])
@@ -83,16 +82,42 @@ class Nutrient:
 
         return nutrient_summary
 
-    def capture_from_camera(self):
-        """카메라 캡처 함수는 원본과 동일"""
-        # 기존 코드 유지
-        ...
+    def calculate_nutrition(self, food_name, quantity):
+        """100g 기준 및 입력 양에 따른 영양정보 계산"""
+        try:
+            if food_name in self.nutrition_df.index:
+                row = self.nutrition_df.loc[food_name]
+                base_nutrition = {
+                    "Calories": row['에너지(kcal)'],
+                    "Protein": row['단백질(g)'],
+                    "Carbs": row['탄수화물(g)'],
+                    "Fat": row['지방(g)'],
+                    "Iron": row['철(mg)'],
+                    "Calc": row['칼슘(mg)']
+                }
+                
+                # 입력된 양에 따른 영양정보 계산
+                adjusted_nutrition = {
+                    key: (value * quantity/100) if pd.notnull(value) else 0
+                    for key, value in base_nutrition.items()
+                }
+                
+                return {
+                    "base": base_nutrition,
+                    "adjusted": adjusted_nutrition
+                }
+            return None
+        except Exception as e:
+            st.error(f"영양정보 계산 오류: {e}")
+            return None
+
 
     def show(self):
         """스트림릿 페이지 UI 구성 및 음식 분석"""
-        st.title("🍗 한식 영양소 분석기")
-        st.subheader("사진을 업로드하면 한식의 영양소 정보를 분석합니다.")
+        st.title("🥗 음식 영양소 분석기")
+        st.subheader("사진을 업로드하거나 카메라로 찍은 이미지를 분석합니다..")
 
+        # 1) 이미지 입력 방식
         input_method = st.radio("이미지 입력 방식 선택", ["파일 업로드", "카메라 촬영"])
         
         image = None
@@ -100,65 +125,156 @@ class Nutrient:
             uploaded_file = st.file_uploader("음식 사진을 업로드하세요", type=["jpg", "png", "jpeg"])
             if uploaded_file is not None:
                 image = Image.open(uploaded_file)
-        else:
-            if st.button("카메라 켜기"):
-                image = self.capture_from_camera()
+        elif input_method == "카메라 촬영":
+            image = st.camera_input("카메라로 사진을 찍어 업로드하세요")
+            if image:
+                image = Image.open(image)
 
         if image is not None:
-            detected_items = nutrient_instance.analyze_food(image)
-            nutrient_info = nutrient_instance.get_nutritional_info(detected_items)
-            st.session_state["detected_nutrients"] = {
-                "calories": nutrient_info["열량"]["value"],
-                "protein": nutrient_info["단백질"]["value"],
-                "calcium": nutrient_info["칼슘"]["value"],
-                "iron": nutrient_info["철"]["value"]
-            }
+            st.image(image, caption="입력된 이미지", use_column_width=True)
+            st.write("🔍 음식 분석 중...")
 
+            detected_foods = self.analyze_food(image)
+            if detected_foods:
+                st.write("**📋 탐지된 음식:**")
+                for food, confidence in detected_foods:
+                    st.write(f"- {food}: {confidence * 100:.1f}% 확률")
+
+                food_name = st.selectbox("음식명", [food for food, _ in detected_foods])
+                quantity = st.number_input("양 (그램 단위)", min_value=1, value=100, step=1)
+
+                if food_name and quantity:
+                    nutrition = self.calculate_nutrition(food_name, quantity)
+                    if nutrition:
+                        st.write("### 기준 영양정보 (100g 기준)")
+                        col1, col2, col3, col4, col5, col6 = st.columns(6)
+                        base = nutrition['base']
+                        col1.metric("열량", f"{base['Calories']:.1f} kcal")
+                        col2.metric("단백질", f"{base['Protein']:.1f} g")
+                        col3.metric("탄수화물", f"{base['Carbs']:.1f} g")
+                        col4.metric("지방", f"{base['Fat']:.1f} g")
+                        col5.metric("철분", f"{base['Iron']:.1f} mg")
+                        col6.metric("칼슘", f"{base['Calc']:.1f} mg")
+
+                        st.write(f"### 조정된 영양정보 ({quantity}g 기준)")
+                        col1, col2, col3, col4, col5, col6 = st.columns(6)
+                        adjusted = nutrition['adjusted']
+                        col1.metric("열량", f"{adjusted['Calories']:.1f} kcal")
+                        col2.metric("단백질", f"{adjusted['Protein']:.1f} g")
+                        col3.metric("탄수화물", f"{adjusted['Carbs']:.1f} g")
+                        col4.metric("지방", f"{adjusted['Fat']:.1f} g")
+                        col5.metric("철분", f"{adjusted['Iron']:.1f} mg")
+                        col6.metric("칼슘", f"{adjusted['Calc']:.1f} mg")
+
+                        # 식단 저장 기능 추가
+                        if st.button("식단 저장"):
+                            try:
+                                date_today = datetime.date.today()
+                                meal_data = {
+                                    "Date": [date_today],
+                                    "Meal": ["분석된 식단"],
+                                    "Food": [food_name],
+                                    "Quantity": [quantity],
+                                    "Unit": ["g"],
+                                    "Calories": [adjusted['Calories']],
+                                    "Protein": [adjusted['Protein']],
+                                    "Carbs": [adjusted['Carbs']],
+                                    "Fat": [adjusted['Fat']],
+                                    "Iron": [adjusted['Iron']],
+                                    "Calc": [adjusted['Calc']]
+                                }
+                                df_new = pd.DataFrame(detected_foods)
+                                st.session_state['detected_foods'] = pd.concat(
+                                    [st.session_state['detected_foods'], df_new], ignore_index=True
+                                )
+                                st.success("식단이 저장되었습니다!")
+                            except Exception as e:
+                                st.error(f"식단 저장 중 오류가 발생했습니다: {str(e)}")
+                    else:
+                        st.error("영양소 정보를 찾을 수 없습니다.")
+            else:
+                st.warning("음식이 감지되지 않았습니다. 다시 시도해주세요.")
+
+    # 영양소 분석 완료 후 AI 메뉴 추천 섹션 추가
+        st.markdown("---")  # 구분선
+        st.subheader("🤖 AI 메뉴 추천")
+        
+         # Gemini API 설정
+        genai.configure(api_key="AIzaSyAOHLx3xEqreniNau4M_FbDXjurkx54cro")  # Gemini API 키 설정
+
+        # 사용자 입력 UI
+        user_input = st.text_input(
+            "메뉴 추천을 위한 질문을 입력하세요 (예: 채식주의자를 위한 단백질 식단 추천)",
+            key="menu_recommendation_input"
+        )
+
+        if st.button("추천 받기") and user_input:
             try:
-                st.image(image, caption="입력된 이미지", use_column_width=True)
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                response = model.generate_content(user_input)
 
-                st.write("🔍 음식 분석 중...")
-                detected_items = self.analyze_food(image)
+                # 시각적으로 박스 처리된 답변 출력
+                st.markdown(
+                    f"""
+                    <div style="background-color:#f0f8ff; padding:15px; border-radius:10px; border: 1px solid #d1e7ff; margin-top:15px;">
+                        <h4 style="color:#0056b3;">추천 결과</h4>
+                        <p style="color:#333;">{response.text}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                if detected_items:
-                    st.write("**📋 탐지된 음식:**")
-                    for food, confidence in detected_items:
-                        st.write(f"- {food}: {confidence:.2f} 확률")
-
-                    st.write("📊 **영양 성분 정보**")
-                    nutrient_info = self.get_nutritional_info(detected_items)
-                    
-                    # 기준량 표시
-                    st.write(f"기준량: {nutrient_info['영양성분함량기준량']['value']}")
-                    
-                    # 영양성분함량기준량을 제외한 나머지 영양소 정보를 테이블로 표시
-                    nutrient_df = pd.DataFrame([
-                        {"영양성분": name, "함량": f"{info['value']:.1f} {info['unit']}"} 
-                        for name, info in nutrient_info.items()
-                        if name != "영양성분함량기준량"
-                    ])
-                    
-                    st.table(nutrient_df)
-                    
-                    # 영양소 분석 코멘트
-                    st.write("💡 **영양소 분석**")
-                    comments = []
-                    if nutrient_info["단백질"]["value"] > 15:
-                        comments.append("단백질이 풍부한 한식입니다.")
-                    if nutrient_info["칼슘"]["value"] > 200:
-                        comments.append("칼슘이 풍부하게 포함되어 있습니다.")
-                    if nutrient_info["철"]["value"] > 2:
-                        comments.append("철분이 풍부한 한식입니다.")
-                    
-                    if comments:
-                        for comment in comments:
-                            st.info(comment)
-                else:
-                    st.error("❌ 한식이 감지되지 않았습니다. 다시 시도해 주세요.")
             except Exception as e:
-                st.error(f"이미지 처리 중 오류 발생: {e}")
+                st.error(f"오류가 발생했습니다: {str(e)}")
+
+    def show_meal_input(self):
+        """식단 입력 + Gemini API를 활용한 AI 메뉴 추천 UI
+        (추가 기능)
+        """
+        st.subheader("🍽️ 식단 입력")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            date = st.date_input("날짜 선택", datetime.date.today())
+            meal_type = st.selectbox("식사 종류", ["아침", "점심", "저녁", "간식"])
+
+        with col2:
+            food_name = st.selectbox("음식명", self.available_foods)
+            quantity = st.number_input("양", min_value=0.0, value=100.0, step=10.0)
+            unit = st.selectbox("단위", ["g", "ml"])
+
+    
+
+        # if st.button("식단 저장"):
+        #     if food_name and quantity > 0:
+        #         nutrition = self.calculate_nutrition(food_name, quantity)
+        #         if nutrition:
+        #             new_data = {
+        #                 "Date": [date],
+        #                 "Meal": [meal_type],
+        #                 "Food": [food_name],
+        #                 "Quantity": [quantity],
+        #                 "Unit": [unit],
+        #                 "Calories": [nutrition['Calories']],
+        #                 "Protein": [nutrition['Protein']],
+        #                 "Carbs": [nutrition['Carbs']],
+        #                 "Fat": [nutrition['Fat']],
+        #                 "Iron": [nutrition['Iron']]
+        #             }
+        #             self.df = pd.concat([self.df, pd.DataFrame(new_data)], ignore_index=True)
+        #             save_meal_data(self.df, self.data_file)
+        #             st.success("식단이 저장되었습니다!")
+        #         else:
+        #             st.error("영양소 정보를 찾을 수 없습니다.")
+        #     else:
+        #         st.error("올바른 음식명과 양을 입력해주세요.")
+    
+    
 
 # Streamlit 앱 실행
 if __name__ == "__main__":
+    if "detected_foods" not in st.session_state:
+        st.session_state["detected_foods"] = []  # 빈 리스트로 초기화
+
     nutrient_app = Nutrient()
     nutrient_app.show()
